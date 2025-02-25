@@ -48,7 +48,7 @@ async def weather_local(message: Message, state: FSMContext):
     await state.update_data(local_lat=message.location.latitude)
     await state.update_data(local_lon=message.location.longitude)
     data = await state.get_data()
-    await message.answer(wt.main(data["local_lat"], data["local_lon"]), reply_markup=ReplyKeyboardRemove())
+    await message.answer(wt.main_bot(data["local_lat"], data["local_lon"]), reply_markup=ReplyKeyboardRemove())
     await state.clear()
 
 
