@@ -27,5 +27,3 @@ async def update_user(tg_id, name, age, number):
                 user_info.age = age
                 user_info.phone = number
                 await session.commit()
-        else:
-            raise ValueError("User not found")
