@@ -6,7 +6,7 @@ import ssl
 from typing import NamedTuple, Literal
 import urllib.request
 from urllib.error import URLError
-from config import USE_ROUNDED_COORDS, OPENWEATHER_URL
+from config import load_config
 from geopy.geocoders import Nominatim
 
 Celsius = float
@@ -20,7 +20,7 @@ class Coordinates(NamedTuple):
 def get_coordinates() -> Coordinates:
     latitude = 51.565782
     longitude = 39.121792
-    if USE_ROUNDED_COORDS:
+    if load_config().USE_ROUNDED_COORDS:
         longitude, latitude = map(lambda c: round(c, 4), [longitude, latitude])
     return Coordinates(longitude=longitude, latitude=latitude)
 
@@ -45,14 +45,16 @@ class Weather(NamedTuple):
 
 def get_weather(coordinates: Coordinates) -> Weather:
     """Requesrts weather in OpenWeather API and returns it"""
-    openweather_response = _get_openweather_response(longitude=coordinates.longitude, latitude=coordinates.latitude)
+    openweather_response = _get_openweather_response(
+        longitude=coordinates.longitude, latitude=coordinates.latitude)
     weather = _parse_openweater_response(openweather_response)
     return weather
 
 
 def _get_openweather_response(latitude: float, longitude: float) -> str:
     ssl._create_default_https_context = ssl._create_unverified_context
-    url = OPENWEATHER_URL.format(latitude=latitude, longitude=longitude)
+    url = load_config().OPENWEATHER_URL.format(
+        latitude=latitude, longitude=longitude, OPENWEATHER_API=load_config().OPENWEATHER_API)
     try:
         return urllib.request.urlopen(url).read()
     except URLError:
@@ -103,7 +105,8 @@ def _parse_sun_time(openweather_dict: dict, time: Literal["sunrise"] | Literal["
 
 def _get_city(coordinates: Coordinates) -> str:
     geolocator = Nominatim(user_agent="my_unique_app_or_email@example.com")
-    location = geolocator.reverse((coordinates.latitude, coordinates.longitude), language='ru')
+    location = geolocator.reverse(
+        (coordinates.latitude, coordinates.longitude), language='ru')
     if location is not None:
         address = location.raw.get('address', {})
         city = address.get('city') or address.get('town') or address.get(

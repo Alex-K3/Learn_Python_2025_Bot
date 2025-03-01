@@ -1,9 +1,9 @@
 from sqlalchemy import BigInteger, String, ForeignKey
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy.ext.asyncio import AsyncAttrs, async_sessionmaker, create_async_engine
-from config import POSTGRE_SQL
+from config import load_config
 
-engine = create_async_engine(url=POSTGRE_SQL)
+engine = create_async_engine(url=load_config().POSTGRE_SQL)
 async_session = async_sessionmaker(engine)
 
 
