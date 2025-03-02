@@ -1,34 +1,49 @@
-from sqlalchemy import BigInteger, String, ForeignKey
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from datetime import datetime
+from typing import Annotated
+from sqlalchemy import BigInteger, Integer, String, func, Date
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, declared_attr
 from sqlalchemy.ext.asyncio import AsyncAttrs, async_sessionmaker, create_async_engine
 from config import load_config
+from config import logger
+
 
 engine = create_async_engine(url=load_config().POSTGRE_SQL)
 async_session = async_sessionmaker(engine)
 
+uniq_str = Annotated[str, mapped_column(String(255), unique=True)]
+normal_str = Annotated[str, mapped_column(String(100))]
+
 
 class Base(AsyncAttrs, DeclarativeBase):
-    pass
+    __abstract__ = True
+
+    id: Mapped[int] = mapped_column(
+        Integer, primary_key=True, autoincrement=True)
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        server_default=func.now(), onupdate=func.now())
+
+    @declared_attr.directive
+    def __tablename__(cls) -> str:
+        return cls.__name__.lower() + 's'
 
 
 class User(Base):
-    __tablename__ = 'users'
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    tg_id = mapped_column(BigInteger)
-    username: Mapped[str] = mapped_column((String(30)))
-
-
-class UserInfo(Base):
-    __tablename__ = 'users_info'
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[str] = mapped_column(String(25))
-    age: Mapped[int] = mapped_column()
-    phone: Mapped[str] = mapped_column(String(25))
-    user: Mapped[int] = mapped_column(ForeignKey('users.id'))
+    tg_id = mapped_column(BigInteger, unique=True)
+    first_name: Mapped[normal_str]
+    last_name: Mapped[normal_str]
+    username: Mapped[uniq_str]
+    birthday: Mapped[datetime] = mapped_column(Date)
+    city: Mapped[normal_str]
+    phone: Mapped[uniq_str]
+    email: Mapped[uniq_str]
 
 
-async def async_main():
+async def database_init():
+    """Инициализация БД (создание таблиц)"""
     async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+        try:
+            await conn.run_sync(Base.metadata.create_all)
+            logger.info("Таблицы успешно созданы в базе данных.")
+        except Exception as e:
+            logger.error(f"Ошибка при создании таблиц: {e}", exc_info=True)

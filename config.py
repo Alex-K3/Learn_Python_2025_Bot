@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from environs import Env
+from logging import getLogger, basicConfig, FileHandler, StreamHandler, DEBUG, INFO
 
 
 @dataclass
@@ -23,3 +24,12 @@ def load_config(path: str | None = None) -> Config:
         OPENWEATHER_API=env('OPENWEATHER_API'),
         OPENWEATHER_URL=env('OPENWEATHER_URL')
     )
+
+
+logger = getLogger()
+FORMAT = '%(asctime)s : %(levelname)s : %(filename)s : %(funcName)s : %(message)s'
+file_handler = FileHandler("data.log")
+file_handler.setLevel(DEBUG)
+console = StreamHandler()
+console.setLevel(INFO)
+basicConfig(level=DEBUG, format=FORMAT, handlers=[file_handler, console])
