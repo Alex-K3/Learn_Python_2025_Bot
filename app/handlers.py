@@ -1,11 +1,11 @@
 from aiogram import Router, F
-from aiogram.types import Message, ReplyKeyboardRemove, ChatMemberUpdated
+from aiogram.types import Message, ReplyKeyboardRemove, ChatMemberUpdated, ContentType
 from aiogram.filters import CommandStart, Command, ChatMemberUpdatedFilter, KICKED, or_f
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
 from app.keyboards import main_reply, get_number, get_local
 import app.database.users as db_user
-import app.weather as wt
+import app.weather as weather
 from config import logger
 
 
@@ -39,35 +39,56 @@ async def command_registry_handler(message: Message, state: FSMContext):
 
 @router.message(Registry.first_name)
 async def register_first_name(message: Message, state: FSMContext):
-    await state.update_data(first_name=message.text)
+    if message.text.isalpha() and message.text >= 3:
+        await state.update_data(first_name=message.text)
+    else:
+        await message.answer('Имя должно состоять только из букв и не короче 3 символов. Повторите ввод:')
+        await state.set_state(Registry.first_name)
     await message.answer('Какая у вас фамилия?')
     await state.set_state(Registry.last_name)
 
 
 @router.message(Registry.last_name)
 async def register_last_name(message: Message, state: FSMContext):
-    await state.update_data(last_name=message.text)
+    if message.text.isalpha() and message.text >= 3:
+        await state.update_data(last_name=message.text)
+    else:
+        await message.answer('Фамилия должна состоять только из букв и не короче 3 символов. Повторите ввод:')
+        await state.set_state(Registry.last_name)
     await message.answer('Укажите дату вашего рождения в формате ДД.ММ.ГГГГ: ')
     await state.set_state(Registry.birthday)
 
 
 @router.message(Registry.birthday)
 async def register_birthday(message: Message, state: FSMContext):
-    await state.update_data(birthday=message.text)
-    await message.answer('Укажите ваш город проживания: ')
+
+    if 1 <= int(message.text.split('.')[0]) <= 31 and 1 <= int(message.text.split('.')[1]) <= 12 and 1900 <= int(message.text.split('.')[2]) <= 2020:
+        await state.update_data(birthday=message.text)
+    else:
+        await message.answer('Указана неверная дата или формат, повторите, пожалуйста, ввод даты вашего рождения в формате ДД.ММ.ГГГГ: ')
+        await state.set_state(Registry.birthday)
+    await message.answer('Укажите ваш город проживания/nВы также можете передать координаты по кнопке', reply_markup=get_local)
     await state.set_state(Registry.city)
 
 
 @router.message(Registry.city)
 async def register_city(message: Message, state: FSMContext):
-    await state.update_data(city=message.text)
+    if message.content_type == ContentType.LOCATION:
+        city = weather._get_city(weather.Coordinates(
+            longitude=message.location.longitude, latitude=message.location.latitude))
+        await state.update_data(city)
+    else:
+        await state.update_data(city=message.text)
     await message.answer('Поделитесь вашим номером телефона, кнопкой ниже', reply_markup=get_number)
     await state.set_state(Registry.phone)
 
 
 @router.message(Registry.phone, F.contact)
 async def register_phone(message: Message, state: FSMContext):
-    await state.update_data(phone=message.contact.phone_number)
+    if message.content_type == ContentType.CONTACT:
+        await state.update_data(phone=message.contact.phone_number)
+    else:
+        await state.update_data(phone=message.text)
     await message.answer('Введите ваш email', reply_markup=ReplyKeyboardRemove())
     await state.set_state(Registry.email)
 
@@ -115,7 +136,7 @@ async def weather_local(message: Message, state: FSMContext):
     await state.update_data(local_lat=message.location.latitude)
     await state.update_data(local_lon=message.location.longitude)
     data = await state.get_data()
-    await message.answer(wt.main_bot(data["local_lat"], data["local_lon"]), reply_markup=ReplyKeyboardRemove())
+    await message.answer(weather.main_bot(data["local_lat"], data["local_lon"]), reply_markup=ReplyKeyboardRemove())
     await state.clear()
 
 
