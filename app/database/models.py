@@ -37,10 +37,10 @@ class User(Base):
     city: Mapped[normal_str]
     phone: Mapped[uniq_str]
     email: Mapped[uniq_str]
+    status: Mapped[str] = mapped_column(String(15))
 
 
 async def database_init():
-    """Инициализация БД (создание таблиц)"""
     async with engine.begin() as conn:
         try:
             await conn.run_sync(Base.metadata.create_all)

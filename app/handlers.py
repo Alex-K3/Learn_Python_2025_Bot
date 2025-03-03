@@ -1,19 +1,24 @@
 from aiogram import Router, F
-from aiogram.types import Message, ReplyKeyboardRemove
-from aiogram.filters import CommandStart, Command
+from aiogram.types import Message, ReplyKeyboardRemove, ChatMemberUpdated
+from aiogram.filters import CommandStart, Command, ChatMemberUpdatedFilter, KICKED, or_f
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
 from app.keyboards import main_reply, get_number, get_local
-import app.database.requests as rq
+import app.database.users as db_user
 import app.weather as wt
+from config import logger
+
 
 router = Router()
 
 
 class Registry(StatesGroup):
-    name = State()
-    age = State()
-    number = State()
+    first_name = State()
+    last_name = State()
+    birthday = State()
+    city = State()
+    phone = State()
+    email = State()
 
 
 class Weather(StatesGroup):
@@ -22,22 +27,84 @@ class Weather(StatesGroup):
 
 @router.message(CommandStart())
 async def command_start_handler(message: Message):
-    await rq.set_user(message.from_user.id, message.from_user.username)
-    await message.answer("Hello! What you're gonna do?", reply_markup=main_reply)
+    await db_user.set_user(message.from_user.id, message.from_user.username, status='Active')
+    await message.answer("Чтобы бот работал корректно, предлагаем вам пройти регистрацию /registry или часть функционала будет недоступна")
 
 
-@router.message(Command('help'))
+@router.message(or_f(Command('registry'), F.text == "Регистрация"))
+async def command_registry_handler(message: Message, state: FSMContext):
+    await message.answer('Какое у вас имя?')
+    await state.set_state(Registry.first_name)
+
+
+@router.message(Registry.first_name)
+async def register_first_name(message: Message, state: FSMContext):
+    await state.update_data(first_name=message.text)
+    await message.answer('Какая у вас фамилия?')
+    await state.set_state(Registry.last_name)
+
+
+@router.message(Registry.last_name)
+async def register_last_name(message: Message, state: FSMContext):
+    await state.update_data(last_name=message.text)
+    await message.answer('Укажите дату вашего рождения в формате ДД.ММ.ГГГГ: ')
+    await state.set_state(Registry.birthday)
+
+
+@router.message(Registry.birthday)
+async def register_birthday(message: Message, state: FSMContext):
+    await state.update_data(birthday=message.text)
+    await message.answer('Укажите ваш город проживания: ')
+    await state.set_state(Registry.city)
+
+
+@router.message(Registry.city)
+async def register_city(message: Message, state: FSMContext):
+    await state.update_data(city=message.text)
+    await message.answer('Поделитесь вашим номером телефона, кнопкой ниже', reply_markup=get_number)
+    await state.set_state(Registry.phone)
+
+
+@router.message(Registry.phone, F.contact)
+async def register_phone(message: Message, state: FSMContext):
+    await state.update_data(phone=message.contact.phone_number)
+    await message.answer('Введите ваш email', reply_markup=ReplyKeyboardRemove())
+    await state.set_state(Registry.email)
+
+
+@router.message(Registry.email)
+async def register_email(message: Message, state: FSMContext):
+    await state.update_data(email=message.text)
+    data = await state.get_data()
+
+    await db_user.update_user(message.from_user.id, data["first_name"], data["last_name"], data["birthday"], data["city"], data["phone"], data["email"])
+    await message.answer(
+        "Регистрация успешно пройдена.\n"
+        "Ваши данные:\n"
+        f"Имя - {data['first_name']}\n"
+        f"Фамилия - {data['last_name']}\n"
+        f"Дата рождения - {data['birthday']}\n"
+        f"Город проживания - {data['city']}\n"
+        f"Номер телефона - {data['phone']}\n"
+        f"И ваша электронная почта - {data['email']}\n"
+        "успешно сохранены"
+    )
+    await state.clear()
+
+
+@router.message(or_f(Command('help'), F.text == "Помощь"))
 async def command_help_handler(message: Message):
     await message.answer("Help yourself", reply_markup=main_reply)
 
 
-@router.message(Command('support'))
+@router.message(or_f(Command('support'), F.text == "Поддержка"))
+# @router.message(F.text == "Поддержка")
 async def command_support_handler(message: Message):
     await message.answer("Developer and author bot: @Aleeex_K. If your have question, please send message author.",
                          reply_markup=ReplyKeyboardRemove())
 
 
-@router.message(Command('weather'))
+@router.message(or_f(Command('weather'), F.text == "Погода"))
 async def command_weather_handler(message: Message, state: FSMContext):
     await state.set_state(Weather.local)
     await message.answer("Share your geo, please", reply_markup=get_local)
@@ -52,62 +119,18 @@ async def weather_local(message: Message, state: FSMContext):
     await state.clear()
 
 
-@router.message(Command('registry'))
-async def command_registry_handler(message: Message, state: FSMContext):
-    await state.set_state(Registry.name)
-    await message.answer('What`s your name?')
-
-
-@router.message(Registry.name)
-async def register_name(message: Message, state: FSMContext):
-    await state.update_data(name=message.text)
-    await state.set_state(Registry.age)
-    await message.answer('How old you are?')
-
-
-@router.message(Registry.age)
-async def register_age(message: Message, state: FSMContext):
-    await state.update_data(age=message.text)
-    await state.set_state(Registry.number)
-    await message.answer('Enter your phone number', reply_markup=get_number)
-
-
-@router.message(Registry.number, F.contact)
-async def register_number(message: Message, state: FSMContext):
-    await state.update_data(number=message.contact.phone_number)
-    data = await state.get_data()
-    try:
-        age = int(data["age"])
-    except ValueError:
-        await message.answer("Возраст должен быть числом. Попробуйте снова.")
-        return
-
-    await rq.update_user(message.from_user.id, data["name"], age, data["number"])
-    await message.answer(f'Your name: {data["name"]}\nYour age: {data["age"]}\nYour number: {data["number"]}',
-                         reply_markup=ReplyKeyboardRemove())
-    await state.clear()
-
-
-@router.message(F.text == "Помощь")
-async def button_help_handler(message: Message):
-    await command_help_handler(message)
-
-
-@router.message(F.text == "Поддержка")
-async def button_support_handler(message: Message):
-    await command_support_handler(message)
-
-
-@router.message(F.text == "Погода")
-async def button_weather_handler(message: Message, state: FSMContext):
-    await command_weather_handler(message, state)
-
-
-@router.message(F.text == "Регистрация")
-async def button_registry_handler(message: Message, state: FSMContext):
-    await command_registry_handler(message, state)
+@router.my_chat_member(ChatMemberUpdatedFilter(member_status_changed=KICKED))
+async def process_user_blocked_bot(event: ChatMemberUpdated):
+    await db_user.set_user(event.from_user.id, event.from_user.username, status='Inactive')
+    logger.info(f'Пользователь {event.from_user.id} заблокировал бота')
 
 
 @router.message()
 async def echo_handler(message: Message) -> None:
-    await message.send_copy(chat_id=message.chat.id)
+    try:
+        await message.send_copy(chat_id=message.chat.id)
+    except TypeError:
+        await message.reply(
+            text='Данный тип апдейтов не поддерживается '
+                 'методом send_copy'
+        )
