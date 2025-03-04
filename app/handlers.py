@@ -27,7 +27,6 @@ class Weather(StatesGroup):
 
 @router.message(CommandStart())
 async def command_start_handler(message: Message):
-    await db_user.set_user(message.from_user.id, message.from_user.username, status='Active')
     await message.answer("Чтобы бот работал корректно, предлагаем вам пройти регистрацию /registry или часть функционала будет недоступна")
 
 
@@ -39,7 +38,7 @@ async def command_registry_handler(message: Message, state: FSMContext):
 
 @router.message(Registry.first_name)
 async def register_first_name(message: Message, state: FSMContext):
-    if message.text.isalpha() and message.text >= 3:
+    if message.text.isalpha() and len(message.text) >= 3:
         await state.update_data(first_name=message.text)
     else:
         await message.answer('Имя должно состоять только из букв и не короче 3 символов. Повторите ввод:')
@@ -50,7 +49,7 @@ async def register_first_name(message: Message, state: FSMContext):
 
 @router.message(Registry.last_name)
 async def register_last_name(message: Message, state: FSMContext):
-    if message.text.isalpha() and message.text >= 3:
+    if message.text.isalpha() and len(message.text) >= 3:
         await state.update_data(last_name=message.text)
     else:
         await message.answer('Фамилия должна состоять только из букв и не короче 3 символов. Повторите ввод:')
@@ -79,7 +78,7 @@ async def register_city(message: Message, state: FSMContext):
         await state.update_data(city)
     else:
         await state.update_data(city=message.text)
-    await message.answer('Поделитесь вашим номером телефона, кнопкой ниже', reply_markup=get_number)
+    await message.answer('Укажите ваш номер телефона или поделитесь номер на кнопку ниже:', reply_markup=get_number)
     await state.set_state(Registry.phone)
 
 
@@ -98,7 +97,15 @@ async def register_email(message: Message, state: FSMContext):
     await state.update_data(email=message.text)
     data = await state.get_data()
 
-    await db_user.update_user(message.from_user.id, data["first_name"], data["last_name"], data["birthday"], data["city"], data["phone"], data["email"])
+    await db_user.set_user(tg_id=message.from_user.id,
+                           first_name=data["first_name"],
+                           last_name=data["last_name"],
+                           username=message.from_user.username,
+                           birthday=data["birthday"],
+                           city=data["city"],
+                           phone=data["phone"],
+                           email=data["email"],
+                           status='Active')
     await message.answer(
         "Регистрация успешно пройдена.\n"
         "Ваши данные:\n"
@@ -119,7 +126,6 @@ async def command_help_handler(message: Message):
 
 
 @router.message(or_f(Command('support'), F.text == "Поддержка"))
-# @router.message(F.text == "Поддержка")
 async def command_support_handler(message: Message):
     await message.answer("Developer and author bot: @Aleeex_K. If your have question, please send message author.",
                          reply_markup=ReplyKeyboardRemove())
