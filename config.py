@@ -27,9 +27,10 @@ def load_config(path: str | None = None) -> Config:
 
 
 logger = getLogger()
-FORMAT = '%(asctime)s : %(levelname)s : %(filename)s : %(funcName)s : %(message)s'
-file_handler = FileHandler("data.log")
+FORMAT = '{asctime} : {levelname:8} : {filename:20} : {funcName:20} : {message}'
+file_handler = FileHandler(filename="data.log", mode='w', encoding='utf-8')
 file_handler.setLevel(DEBUG)
 console = StreamHandler()
 console.setLevel(INFO)
-basicConfig(level=DEBUG, format=FORMAT, handlers=[file_handler, console])
+basicConfig(level=DEBUG, format=FORMAT, handlers=[
+            file_handler, console], style='{')
