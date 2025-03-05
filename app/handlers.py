@@ -7,6 +7,7 @@ from app.keyboards import main_reply, get_number, get_local
 import app.database.users as db_user
 import app.weather as weather
 from config import logger
+from datetime import datetime, date
 
 
 router = Router()
@@ -60,14 +61,19 @@ async def register_last_name(message: Message, state: FSMContext):
 
 @router.message(Registry.birthday)
 async def register_birthday(message: Message, state: FSMContext):
+    birthday = datetime.strptime(message.text, "%d.%m.%Y").date()
+    today = date.today()
 
-    if 1 <= int(message.text.split('.')[0]) <= 31 and 1 <= int(message.text.split('.')[1]) <= 12 and 1900 <= int(message.text.split('.')[2]) <= 2020:
-        await state.update_data(birthday=message.text)
+    if birthday > today:
+        await message.answer("Дата рождения не может быть в будущем! Повторите ввод в формате ДД.ММ.ГГГГ: ")
+    elif birthday < date(1930, 1, 1):
+        await message.answer("Вы ввели слишком старую дату! Введите реальную дату рождения (не раньше 1930 года) в формате ДД.ММ.ГГГГ: ")
     else:
-        await message.answer('Указана неверная дата или формат, повторите, пожалуйста, ввод даты вашего рождения в формате ДД.ММ.ГГГГ: ')
-        await state.set_state(Registry.birthday)
-    await message.answer('Укажите ваш город проживания/nВы также можете передать координаты по кнопке', reply_markup=get_local)
-    await state.set_state(Registry.city)
+        await state.update_data(birthday=birthday)
+        await message.answer('Укажите ваш город проживания/nВы также можете передать координаты по кнопке', reply_markup=get_local)
+        await state.set_state(Registry.city)
+        return
+    await state.set_state(Registry.birthday)
 
 
 @router.message(Registry.city)
@@ -75,7 +81,7 @@ async def register_city(message: Message, state: FSMContext):
     if message.content_type == ContentType.LOCATION:
         city = weather._get_city(weather.Coordinates(
             longitude=message.location.longitude, latitude=message.location.latitude))
-        await state.update_data(city)
+        await state.update_data(city=city)
     else:
         await state.update_data(city=message.text)
     await message.answer('Укажите ваш номер телефона или поделитесь номер на кнопку ниже:', reply_markup=get_number)
