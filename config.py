@@ -20,7 +20,7 @@ def load_config(path: str | None = None) -> Config:
         TELEGRAM_API=env('TELEGRAM_API'),
         POSTGRE_SQL=env('POSTGRE_SQL'),
         SQLITE=env('SQLITE'),
-        USE_ROUNDED_COORDS=env('USE_ROUNDED_COORDS'),
+        USE_ROUNDED_COORDS=env.bool('USE_ROUNDED_COORDS'),
         OPENWEATHER_API=env('OPENWEATHER_API'),
         OPENWEATHER_URL=env('OPENWEATHER_URL')
     )
